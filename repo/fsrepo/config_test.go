@@ -1,0 +1,244 @@
+
+//此源码被清华学神尹成大魔王专业翻译分析并修改
+//尹成QQ77025077
+//尹成微信18510341407
+//尹成所在QQ群721929980
+//尹成邮箱 yinc13@mails.tsinghua.edu.cn
+//尹成毕业于清华大学,微软区块链领域全球最有价值专家
+//https://mvp.microsoft.com/zh-cn/PublicProfile/4033620
+package fsrepo_test
+
+import (
+	"encoding/json"
+	"io/ioutil"
+	"os"
+	"reflect"
+	"testing"
+
+	"github.com/ipfs/go-ipfs/plugin/loader"
+	"github.com/ipfs/go-ipfs/repo/fsrepo"
+
+	"gx/ipfs/QmcRKBUqc2p3L1ZraoJjbXfs9E6xzvEuyK9iypb5RGwfsr/go-ipfs-config"
+)
+
+//注意：要测试磁盘规格中装入点的排序，它们是
+//在测试配置中指定的顺序错误
+var defaultConfig = []byte(`{
+    "StorageMax": "10GB",
+    "StorageGCWatermark": 90,
+    "GCPeriod": "1h",
+    "Spec": {
+      "mounts": [
+        {
+          "child": {
+            "compression": "none",
+            "path": "datastore",
+            "type": "levelds"
+          },
+          "mountpoint": "/",
+          "prefix": "leveldb.datastore",
+          "type": "measure"
+        },
+        {
+          "child": {
+            "path": "blocks",
+            "shardFunc": "/repo/flatfs/shard/v1/next-to-last/2",
+            "sync": true,
+            "type": "flatfs"
+          },
+          "mountpoint": "/blocks",
+          "prefix": "flatfs.datastore",
+          "type": "measure"
+        }
+      ],
+      "type": "mount"
+    },
+    "HashOnRead": false,
+    "BloomFilterSize": 0
+}`)
+
+var leveldbConfig = []byte(`{
+            "compression": "none",
+            "path": "datastore",
+            "type": "levelds"
+}`)
+
+var flatfsConfig = []byte(`{
+            "path": "blocks",
+            "shardFunc": "/repo/flatfs/shard/v1/next-to-last/2",
+            "sync": true,
+            "type": "flatfs"
+}`)
+
+var measureConfig = []byte(`{
+          "child": {
+            "path": "blocks",
+            "shardFunc": "/repo/flatfs/shard/v1/next-to-last/2",
+            "sync": true,
+            "type": "flatfs"
+          },
+          "mountpoint": "/blocks",
+          "prefix": "flatfs.datastore",
+          "type": "measure"
+}`)
+
+func TestDefaultDatastoreConfig(t *testing.T) {
+	loader, err := loader.NewPluginLoader("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = loader.Initialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = loader.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dir, err := ioutil.TempDir("", "ipfs-datastore-config-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+defer os.RemoveAll(dir) //清理
+
+	config := new(config.Datastore)
+	err = json.Unmarshal(defaultConfig, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dsc, err := fsrepo.AnyDatastoreConfig(config.Spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := `{"mounts":[{"mountpoint":"/blocks","path":"blocks","shardFunc":"/repo/flatfs/shard/v1/next-to-last/2","type":"flatfs"},{"mountpoint":"/","path":"datastore","type":"levelds"}],"type":"mount"}`
+	if dsc.DiskSpec().String() != expected {
+		t.Errorf("expected '%s' got '%s' as DiskId", expected, dsc.DiskSpec().String())
+	}
+
+	ds, err := dsc.Create(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if typ := reflect.TypeOf(ds).String(); typ != "*mount.Datastore" {
+		t.Errorf("expected '*mount.Datastore' got '%s'", typ)
+	}
+}
+
+func TestLevelDbConfig(t *testing.T) {
+	config := new(config.Datastore)
+	err := json.Unmarshal(defaultConfig, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err := ioutil.TempDir("", "ipfs-datastore-config-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+defer os.RemoveAll(dir) //清理
+
+	spec := make(map[string]interface{})
+	err = json.Unmarshal(leveldbConfig, &spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dsc, err := fsrepo.AnyDatastoreConfig(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := `{"path":"datastore","type":"levelds"}`
+	if dsc.DiskSpec().String() != expected {
+		t.Errorf("expected '%s' got '%s' as DiskId", expected, dsc.DiskSpec().String())
+	}
+
+	ds, err := dsc.Create(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if typ := reflect.TypeOf(ds).String(); typ != "*leveldb.datastore" {
+		t.Errorf("expected '*leveldb.datastore' got '%s'", typ)
+	}
+}
+
+func TestFlatfsConfig(t *testing.T) {
+	config := new(config.Datastore)
+	err := json.Unmarshal(defaultConfig, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err := ioutil.TempDir("", "ipfs-datastore-config-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+defer os.RemoveAll(dir) //清理
+
+	spec := make(map[string]interface{})
+	err = json.Unmarshal(flatfsConfig, &spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dsc, err := fsrepo.AnyDatastoreConfig(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := `{"path":"blocks","shardFunc":"/repo/flatfs/shard/v1/next-to-last/2","type":"flatfs"}`
+	if dsc.DiskSpec().String() != expected {
+		t.Errorf("expected '%s' got '%s' as DiskId", expected, dsc.DiskSpec().String())
+	}
+
+	ds, err := dsc.Create(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if typ := reflect.TypeOf(ds).String(); typ != "*flatfs.Datastore" {
+		t.Errorf("expected '*flatfs.Datastore' got '%s'", typ)
+	}
+}
+
+func TestMeasureConfig(t *testing.T) {
+	config := new(config.Datastore)
+	err := json.Unmarshal(defaultConfig, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir, err := ioutil.TempDir("", "ipfs-datastore-config-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+defer os.RemoveAll(dir) //清理
+
+	spec := make(map[string]interface{})
+	err = json.Unmarshal(measureConfig, &spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dsc, err := fsrepo.AnyDatastoreConfig(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := `{"path":"blocks","shardFunc":"/repo/flatfs/shard/v1/next-to-last/2","type":"flatfs"}`
+	if dsc.DiskSpec().String() != expected {
+		t.Errorf("expected '%s' got '%s' as DiskId", expected, dsc.DiskSpec().String())
+	}
+
+	ds, err := dsc.Create(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if typ := reflect.TypeOf(ds).String(); typ != "*measure.measure" {
+		t.Errorf("expected '*measure.measure' got '%s'", typ)
+	}
+}

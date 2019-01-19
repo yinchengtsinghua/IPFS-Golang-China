@@ -1,0 +1,221 @@
+
+//此源码被清华学神尹成大魔王专业翻译分析并修改
+//尹成QQ77025077
+//尹成微信18510341407
+//尹成所在QQ群721929980
+//尹成邮箱 yinc13@mails.tsinghua.edu.cn
+//尹成毕业于清华大学,微软区块链领域全球最有价值专家
+//https://mvp.microsoft.com/zh-cn/PublicProfile/4033620
+package commands
+
+import (
+	"errors"
+
+	dag "github.com/ipfs/go-ipfs/core/commands/dag"
+	name "github.com/ipfs/go-ipfs/core/commands/name"
+	ocmd "github.com/ipfs/go-ipfs/core/commands/object"
+	unixfs "github.com/ipfs/go-ipfs/core/commands/unixfs"
+
+	cmds "gx/ipfs/QmWGm4AbZEbnmdgVTza52MSNpEmBdFVqzmAysRbjrRyGbH/go-ipfs-cmds"
+	logging "gx/ipfs/QmcuXC5cxs79ro2cUuHs4HQ2bkDLJUYokwL8aivcX6HW3C/go-log"
+	"gx/ipfs/Qmde5VP1qUkyQXKCfmEUA7bP64V2HAptbJ7phuPp7jXWwg/go-ipfs-cmdkit"
+)
+
+var log = logging.Logger("core/commands")
+
+var ErrNotOnline = errors.New("this command must be run in online mode. Try running 'ipfs daemon' first")
+
+const (
+	ConfigOption  = "config"
+	DebugOption   = "debug"
+LocalOption   = "local" //已弃用：使用offlineoption
+	OfflineOption = "offline"
+	ApiOption     = "api"
+)
+
+var Root = &cmds.Command{
+	Helptext: cmdkit.HelpText{
+		Tagline:  "Global p2p merkle-dag filesystem.",
+		Synopsis: "ipfs [--config=<config> | -c] [--debug=<debug> | -D] [--help=<help>] [-h=<h>] [--local=<local> | -L] [--api=<api>] <command> ...",
+		Subcommands: `
+BASIC COMMANDS
+  init          Initialize ipfs local configuration
+  add <path>    Add a file to IPFS
+  cat <ref>     Show IPFS object data
+  get <ref>     Download IPFS objects
+  ls <ref>      List links from an object
+  refs <ref>    List hashes of links from an object
+
+DATA STRUCTURE COMMANDS
+  block         Interact with raw blocks in the datastore
+  object        Interact with raw dag nodes
+  files         Interact with objects as if they were a unix filesystem
+  dag           Interact with IPLD documents (experimental)
+
+ADVANCED COMMANDS
+  daemon        Start a long-running daemon process
+  mount         Mount an IPFS read-only mountpoint
+  resolve       Resolve any type of name
+  name          Publish and resolve IPNS names
+  key           Create and list IPNS name keypairs
+  dns           Resolve DNS links
+  pin           Pin objects to local storage
+  repo          Manipulate the IPFS repository
+  stats         Various operational stats
+  p2p           Libp2p stream mounting
+  filestore     Manage the filestore (experimental)
+
+NETWORK COMMANDS
+  id            Show info about IPFS peers
+  bootstrap     Add or remove bootstrap peers
+  swarm         Manage connections to the p2p network
+  dht           Query the DHT for values or peers
+  ping          Measure the latency of a connection
+  diag          Print diagnostics
+
+TOOL COMMANDS
+  config        Manage configuration
+  version       Show ipfs version information
+  update        Download and apply go-ipfs updates
+  commands      List all available commands
+  cid           Convert and discover properties of CIDs
+
+Use 'ipfs <command> --help' to learn more about each command.
+
+ipfs uses a repository in the local file system. By default, the repo is
+located at ~/.ipfs. To change the repo location, set the $IPFS_PATH
+environment variable:
+
+  export IPFS_PATH=/path/to/ipfsrepo
+
+EXIT STATUS
+
+The CLI will exit with one of the following values:
+
+0     Successful execution.
+1     Failed executions.
+`,
+	},
+	Options: []cmdkit.Option{
+		cmdkit.StringOption(ConfigOption, "c", "Path to the configuration file to use."),
+		cmdkit.BoolOption(DebugOption, "D", "Operate in debug mode."),
+		cmdkit.BoolOption(cmds.OptLongHelp, "Show the full command help text."),
+		cmdkit.BoolOption(cmds.OptShortHelp, "Show a short version of the command help text."),
+		cmdkit.BoolOption(LocalOption, "L", "Run the command locally, instead of using the daemon. DEPRECATED: use --offline."),
+		cmdkit.BoolOption(OfflineOption, "Run the command offline."),
+		cmdkit.StringOption(ApiOption, "Use a specific API instance (defaults to /ip4/127.0.0.1/tcp/5001)"),
+
+//全局选项，添加到每个命令
+		cmds.OptionEncodingType,
+		cmds.OptionStreamChannels,
+		cmds.OptionTimeout,
+	},
+}
+
+//commandsDataMonCmd是守护进程的“ipfs命令”命令
+var CommandsDaemonCmd = CommandsCmd(Root)
+
+var rootSubcommands = map[string]*cmds.Command{
+	"add":       AddCmd,
+	"bitswap":   BitswapCmd,
+	"block":     BlockCmd,
+	"cat":       CatCmd,
+	"commands":  CommandsDaemonCmd,
+	"files":     FilesCmd,
+	"filestore": FileStoreCmd,
+	"get":       GetCmd,
+	"pubsub":    PubsubCmd,
+	"repo":      RepoCmd,
+	"stats":     StatsCmd,
+	"bootstrap": BootstrapCmd,
+	"config":    ConfigCmd,
+	"dag":       dag.DagCmd,
+	"dht":       DhtCmd,
+	"diag":      DiagCmd,
+	"dns":       DNSCmd,
+	"id":        IDCmd,
+	"key":       KeyCmd,
+	"log":       LogCmd,
+	"ls":        LsCmd,
+	"mount":     MountCmd,
+	"name":      name.NameCmd,
+	"object":    ocmd.ObjectCmd,
+	"pin":       PinCmd,
+	"ping":      PingCmd,
+	"p2p":       P2PCmd,
+	"refs":      RefsCmd,
+	"resolve":   ResolveCmd,
+	"swarm":     SwarmCmd,
+	"tar":       TarCmd,
+	"file":      unixfs.UnixFSCmd,
+	"update":    ExternalBinary(),
+	"urlstore":  urlStoreCmd,
+	"version":   VersionCmd,
+	"shutdown":  daemonShutdownCmd,
+	"cid":       CidCmd,
+}
+
+//rootro是根的只读版本
+var RootRO = &cmds.Command{}
+
+var CommandsDaemonROCmd = CommandsCmd(RootRO)
+
+//refsrocmd是'ipfs refs'命令
+var RefsROCmd = &cmds.Command{}
+
+var rootROSubcommands = map[string]*cmds.Command{
+	"commands": CommandsDaemonROCmd,
+	"cat":      CatCmd,
+	"block": &cmds.Command{
+		Subcommands: map[string]*cmds.Command{
+			"stat": blockStatCmd,
+			"get":  blockGetCmd,
+		},
+	},
+	"get": GetCmd,
+	"dns": DNSCmd,
+	"ls":  LsCmd,
+	"name": {
+		Subcommands: map[string]*cmds.Command{
+			"resolve": name.IpnsCmd,
+		},
+	},
+	"object": {
+		Subcommands: map[string]*cmds.Command{
+			"data":  ocmd.ObjectDataCmd,
+			"links": ocmd.ObjectLinksCmd,
+			"get":   ocmd.ObjectGetCmd,
+			"stat":  ocmd.ObjectStatCmd,
+		},
+	},
+	"dag": {
+		Subcommands: map[string]*cmds.Command{
+			"get":     dag.DagGetCmd,
+			"resolve": dag.DagResolveCmd,
+		},
+	},
+	"resolve": ResolveCmd,
+	"version": VersionCmd,
+}
+
+func init() {
+	Root.ProcessHelp()
+	*RootRO = *Root
+
+//清除只读引用命令
+	*RefsROCmd = *RefsCmd
+	RefsROCmd.Subcommands = map[string]*cmds.Command{}
+
+//这在上面的大地图定义中，
+//但是如果我们把它留在那里，lgc.newcommand将被执行
+//在更新值之前（：/sanitize readonly refs command/）
+	rootROSubcommands["refs"] = RefsROCmd
+
+	Root.Subcommands = rootSubcommands
+
+	RootRO.Subcommands = rootROSubcommands
+}
+
+type MessageOutput struct {
+	Message string
+}
